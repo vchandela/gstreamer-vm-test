@@ -44,7 +44,7 @@ static gboolean link_elements_with_audio_filter (GstElement *element1, GstElemen
 
 int main(int argc, char *argv[]) {
     GstElement *pipeline;
-    GstElement *video_source, *video_convert, *x264_enc, *video_tee, *video_flv_queue, *video_mp4_queue;
+    GstElement *video_source, *video_queue, *video_convert, *x264_enc, *video_tee, *video_flv_queue, *video_mp4_queue;
     GstElement *audio_source, *audio_convert, *audio_resample, *avenc_aac, *audio_tee, *audio_flv_queue, *audio_mp4_queue;
     GstElement *flv_mux, *flv_filesink, *split_mux_sink;
 
@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
 
     /* Create the elements */
     video_source = gst_element_factory_make ("videotestsrc", "video_source");
+    video_queue = gst_element_factory_make ("queue", "video_queue");
     video_convert = gst_element_factory_make ("videoconvert", "video_convert");
     x264_enc = gst_element_factory_make ("x264enc", "x264_enc");
     video_tee = gst_element_factory_make ("tee", "video_tee");
@@ -89,7 +90,7 @@ int main(int argc, char *argv[]) {
     /* Create the empty pipeline */
     pipeline = gst_pipeline_new ("test-pipeline");
 
-    if (!pipeline || !video_source || !video_convert || !x264_enc || !video_tee || !video_flv_queue || !video_mp4_queue ||
+    if (!pipeline || !video_source || !video_queue || !video_convert || !x264_enc || !video_tee || !video_flv_queue || !video_mp4_queue ||
     !audio_source || !audio_convert || !audio_resample || !avenc_aac || !audio_tee || !audio_flv_queue || !audio_mp4_queue ||
     !flv_mux || !flv_filesink || !split_mux_sink) {
         g_printerr ("Not all elements could be created.\n");
@@ -109,12 +110,12 @@ int main(int argc, char *argv[]) {
   
     /* Link all elements that can be automatically linked because they have "Always" pads */
     /* Adding caps filter between video_source and video_convert */
-    gst_bin_add_many (GST_BIN (pipeline), video_source, video_convert, x264_enc, video_tee, video_flv_queue, video_mp4_queue,
+    gst_bin_add_many (GST_BIN (pipeline), video_source, video_queue, video_convert, x264_enc, video_tee, video_flv_queue, video_mp4_queue,
     audio_source, audio_convert, audio_resample, avenc_aac, audio_tee, audio_flv_queue, audio_mp4_queue,
     flv_mux, flv_filesink, split_mux_sink, NULL);
 
-    if (link_elements_with_video_filter (video_source, video_convert) != TRUE ||
-        gst_element_link_many (video_convert, x264_enc, video_tee, NULL) != TRUE ||
+    if (link_elements_with_video_filter (video_source, video_queue) != TRUE ||
+        gst_element_link_many (video_queue, video_convert, x264_enc, video_tee, NULL) != TRUE ||
 
         link_elements_with_audio_filter (audio_source, audio_convert, 48000, 2) != TRUE ||
         gst_element_link_many (audio_convert, audio_resample, NULL) != TRUE ||
@@ -215,7 +216,7 @@ int main(int argc, char *argv[]) {
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
     /* Visualize the pipeline using GraphViz */
-    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-doubletee");
+    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-doubletee-singlequeue");
 
     /* Wait until error or EOS */
     bus = gst_element_get_bus (pipeline);
