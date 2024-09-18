@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
-    g_object_set (flv_filesink, "location", "/Users/vivekchandela/Documents/flvtest/output3.flv", NULL);
-    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk3%02d.mp4", "max-size-time", 15000000000, "async-finalize", true, "send-keyframe-requests", true, NULL);
+    g_object_set (flv_filesink, "location", "/Users/vivekchandela/Documents/flvtest/output.flv", NULL);
+    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", 15000000000, "async-finalize", true, "send-keyframe-requests", true, NULL);
 
     g_print ("All elements configured successfully.\n");
   
@@ -212,6 +212,9 @@ int main(int argc, char *argv[]) {
 
     /* Start playing the pipeline */
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
+
+    /* Visualize the pipeline using GraphViz */
+    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
 
     /* Wait until error or EOS */
     bus = gst_element_get_bus (pipeline);
