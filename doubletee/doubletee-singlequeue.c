@@ -7,6 +7,7 @@ static gboolean link_elements_with_video_filter (GstElement *element1, GstElemen
     GstCaps *caps;
 
     caps = gst_caps_new_simple ("video/x-raw",
+            "format", G_TYPE_STRING, "I420",
             "width", G_TYPE_INT, 720,
             "height", G_TYPE_INT, 1280,
             "framerate", GST_TYPE_FRACTION, 15, 1,
