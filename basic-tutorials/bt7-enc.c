@@ -1,8 +1,8 @@
 #include <gst/gst.h>
 
 int main(int argc, char *argv[]) {
-  GstElement *pipeline, *audio_source, *tee, *audio_queue, *audio_convert, *audio_resample, *audio_sink;
-  GstElement *video_queue, *visual, *video_convert, *video_sink;
+  GstElement *pipeline, *audio_source, *tee, *audio_queue, *audio_convert, *audio_resample, *avenc_aac, *audio_sink;
+  GstElement *video_queue, *visual, *video_convert, *x264_enc, *video_sink;
   GstBus *bus;
   GstMessage *msg;
   GstPad *tee_audio_pad, *tee_video_pad;
@@ -17,38 +17,42 @@ int main(int argc, char *argv[]) {
   audio_queue = gst_element_factory_make ("queue", "audio_queue");
   audio_convert = gst_element_factory_make ("audioconvert", "audio_convert");
   audio_resample = gst_element_factory_make ("audioresample", "audio_resample");
+  avenc_aac = gst_element_factory_make ("avenc_aac", "avenc_aac");
   audio_sink = gst_element_factory_make ("autoaudiosink", "audio_sink");
   video_queue = gst_element_factory_make ("queue", "video_queue");
   visual = gst_element_factory_make ("wavescope", "visual");
   video_convert = gst_element_factory_make ("videoconvert", "csp");
+  x264_enc = gst_element_factory_make ("x264enc", "x264_enc");
   video_sink = gst_element_factory_make ("autovideosink", "video_sink");
 
   /* Create the empty pipeline */
   pipeline = gst_pipeline_new ("test-pipeline");
 
-  if (!pipeline || !audio_source || !tee || !audio_queue || !audio_convert || !audio_resample || !audio_sink ||
-      !video_queue || !visual || !video_convert || !video_sink) {
+  if (!pipeline || !audio_source || !tee || !audio_queue || !audio_convert || !audio_resample || !avenc_aac || !audio_sink ||
+      !video_queue || !visual || !video_convert || !x264_enc || !video_sink) {
     g_printerr ("Not all elements could be created.\n");
     return -1;
   } else {
-    g_print ("All elements created.\n");
+    g_print ("All elements created successfully.\n");
   }
 
   /* Configure elements */
   g_object_set (audio_source, "freq", 215.0f, NULL);
   g_object_set (visual, "shader", 0, "style", 1, NULL);
+  g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
+  g_object_set (avenc_aac, "bitrate", 256, NULL);
 
   /* Link all elements that can be automatically linked because they have "Always" pads */
-  gst_bin_add_many (GST_BIN (pipeline), audio_source, tee, audio_queue, audio_convert, audio_resample, audio_sink,
-      video_queue, visual, video_convert, video_sink, NULL);
+  gst_bin_add_many (GST_BIN (pipeline), audio_source, tee, audio_queue, audio_convert, audio_resample, avenc_aac, audio_sink,
+      video_queue, visual, video_convert, x264_enc, video_sink, NULL);
   if (gst_element_link_many (audio_source, tee, NULL) != TRUE ||
-      gst_element_link_many (audio_queue, audio_convert, audio_resample, audio_sink, NULL) != TRUE ||
-      gst_element_link_many (video_queue, visual, video_convert, video_sink, NULL) != TRUE) {
+      gst_element_link_many (audio_queue, audio_convert, audio_resample, avenc_aac, audio_sink, NULL) != TRUE ||
+      gst_element_link_many (video_queue, visual, video_convert, x264_enc, video_sink, NULL) != TRUE) {
     g_printerr ("Elements could not be linked.\n");
     gst_object_unref (pipeline);
     return -1;
   } else {
-    g_print ("All elements linked.\n");
+    g_print ("All elements linked successfully.\n");
   }
 
   /* Manually link the Tee, which has "Request" pads */
