@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[]) {
     GstElement *pipeline, *video_source, *video_queue, *video_convert, *x264_enc, *video_mp4mux_queue;
-    GstElement *mp4_mux, *fake_sink;
+    GstElement *mp4_mux, *file_sink;
     
     GstBus *bus;
     GstMessage *msg;
@@ -22,13 +22,13 @@ int main(int argc, char *argv[]) {
     video_mp4mux_queue = gst_element_factory_make ("queue", "video_mp4_queue");
 
     mp4_mux = gst_element_factory_make ("mp4mux", "mp4_mux");
-    fake_sink = gst_element_factory_make ("fakesink", "fake_sink");
+    file_sink = gst_element_factory_make ("filesink", "file_sink");
 
     /* Create the empty pipeline */
     pipeline = gst_pipeline_new ("test-pipeline");
 
     if (!pipeline || !video_source || !video_queue || !video_convert || !x264_enc || !video_mp4mux_queue || 
-    !mp4_mux || !fake_sink) {
+    !mp4_mux || !file_sink) {
         g_printerr ("Not all elements could be created.\n");
         return -1;
     } else {
@@ -37,17 +37,17 @@ int main(int argc, char *argv[]) {
 
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
-    g_object_set (fake_sink, "sync", true, NULL);
+    g_object_set (file_sink, "location", "/Users/vivekchandela/Documents/mp4test/output.mp4", "sync", true, NULL);
 
     g_print ("All elements configured successfully.\n");
 
     /* Link all elements that can be automatically linked because they have "Always" pads */
     gst_bin_add_many (GST_BIN (pipeline), video_source, video_queue, video_convert, x264_enc, video_mp4mux_queue, 
-    mp4_mux, fake_sink, NULL);
+    mp4_mux, file_sink, NULL);
 
     if (gst_element_link_many (video_source, video_queue, video_convert, x264_enc, video_mp4mux_queue, NULL) != TRUE ||
 
-    gst_element_link_many (mp4_mux, fake_sink, NULL) != TRUE) {
+    gst_element_link_many (mp4_mux, file_sink, NULL) != TRUE) {
         g_printerr ("Elements could not be linked.\n");
         gst_object_unref (pipeline);
         return -1;
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
     /* Visualize the pipeline using GraphViz */
-    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-mp4mux-fakesink");
+    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-mp4mux-filesink");
 
     /* Wait until error or EOS */
     bus = gst_element_get_bus (pipeline);

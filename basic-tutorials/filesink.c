@@ -1,4 +1,5 @@
 #include <gst/gst.h>
+#include <stdbool.h>
 
 int main(int argc, char *argv[]) {
     GstElement *pipeline, *video_source, *video_queue, *video_convert, *x264_enc, *file_sink;
@@ -27,7 +28,7 @@ int main(int argc, char *argv[]) {
 
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
-    g_object_set (file_sink, "location", "/Users/vivekchandela/Documents/mp4test/output.mp4", NULL);
+    g_object_set (file_sink, "location", "/Users/vivekchandela/Documents/mp4test/output.mp4", "sync", true, NULL);
 
     g_print ("All elements configured successfully.\n");
 
