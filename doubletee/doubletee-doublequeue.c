@@ -1,5 +1,25 @@
 #include <gst/gst.h>
-#include <stdbool.h>    
+#include <stdbool.h>
+#include <time.h>
+#include <sys/time.h>
+
+#define SEGMENT_DURATION 15000 // Duration for each segment in milliseconds
+
+// Function to get the current time in milliseconds since the Unix epoch
+static long long current_time_millis() {
+    struct timeval time_now;
+    gettimeofday(&time_now, NULL);
+    return (long long)(time_now.tv_sec) * 1000 + (long long)(time_now.tv_usec) / 1000;
+}
+
+static gchar* format_location_callback(GstElement *splitmuxsink, guint fragment_id, gpointer user_data) {
+    // Get the (Unix epoch time) for start and end time
+    long long start_time = current_time_millis();
+    long long end_time = start_time + SEGMENT_DURATION;
+
+    gchar *filename = g_strdup_printf("/Users/vivekchandela/Documents/mp4test/%lld_%lld.mp4", start_time, end_time);
+    return filename;
+}
 
 static gboolean link_elements_with_video_filter (GstElement *element1, GstElement *element2)
 {
@@ -47,7 +67,7 @@ int main(int argc, char *argv[]) {
     GstElement *pipeline;
     GstElement *video_source, *video_queue, *video_convert, *x264_enc, *video_tee, *video_flv_queue;
     GstElement *audio_source, *audio_queue, *audio_convert, *audio_resample, *avenc_aac, *audio_tee, *audio_flv_queue;
-    GstElement *flv_mux, *flv_filesink, *split_mux_sink;
+    GstElement *flv_mux, *flv_filesink, *split_mux_sink, *custom_file_sink;
 
     GstBus *bus;
     GstMessage *msg;
@@ -60,8 +80,6 @@ int main(int argc, char *argv[]) {
 
     GstPad *video_flv_queue_src_pad, *audio_flv_queue_src_pad;
     GstPad *flv_mux_video_pad, *flv_mux_audio_pad;
-
-    GstStructure *sink_props;
 
     /* Initialize GStreamer */
     gst_init (&argc, &argv);
@@ -85,6 +103,7 @@ int main(int argc, char *argv[]) {
     flv_mux = gst_element_factory_make ("flvmux", "flv_mux");
     flv_filesink = gst_element_factory_make ("filesink", "flv_filesink");
     split_mux_sink = gst_element_factory_make ("splitmuxsink", "split_mux_sink");
+    custom_file_sink = gst_element_factory_make ("filesink", "custom_file_sink");
 
     /* Create the empty pipeline */
     pipeline = gst_pipeline_new ("test-pipeline");
@@ -98,17 +117,16 @@ int main(int argc, char *argv[]) {
         g_print ("All elements created successfully.\n");
     }
 
-    /* Create the sink properties structure */
-    sink_props = gst_structure_new("properties",
-                    "sync", G_TYPE_BOOLEAN, TRUE,
-                    NULL);
-
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
     g_object_set (flv_mux, "streamable", true, "enforce-increasing-timestamps", false, NULL);
     g_object_set (flv_filesink, "location", "/Users/vivekchandela/Documents/flvtest/output.flv", "sync", true, NULL);
-    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", 15000000000, "async-finalize", true, "send-keyframe-requests", true, "sink-properties", sink_props, NULL);
+    g_object_set (custom_file_sink, "sync", true, NULL);
+    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", (guint64)SEGMENT_DURATION * GST_MSECOND, "send-keyframe-requests", true, "sink", custom_file_sink, NULL);
+
+    // Connect the format-location signal to generate dynamic filenames
+    g_signal_connect(split_mux_sink, "format-location", G_CALLBACK(format_location_callback), NULL);
 
     g_print ("All elements configured successfully.\n");
   

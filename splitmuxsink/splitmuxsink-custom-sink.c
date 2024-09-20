@@ -1,5 +1,25 @@
 #include <gst/gst.h>
-#include <stdbool.h>    
+#include <stdbool.h>
+#include <time.h>
+#include <sys/time.h>
+
+#define SEGMENT_DURATION 15000 // Duration for each segment in milliseconds
+
+// Function to get the current time in milliseconds since the Unix epoch
+static long long current_time_millis() {
+    struct timeval time_now;
+    gettimeofday(&time_now, NULL);
+    return (long long)(time_now.tv_sec) * 1000 + (long long)(time_now.tv_usec) / 1000;
+}
+
+static gchar* format_location_callback(GstElement *splitmuxsink, guint fragment_id, gpointer user_data) {
+    // Get the (Unix epoch time) for start and end time
+    long long start_time = current_time_millis();
+    long long end_time = start_time + SEGMENT_DURATION;
+
+    gchar *filename = g_strdup_printf("/Users/vivekchandela/Documents/mp4test/sink_%lld_%lld.mp4", start_time, end_time);
+    return filename;
+}    
 
 static gboolean link_elements_with_video_filter (GstElement *element1, GstElement *element2)
 {
@@ -54,8 +74,6 @@ int main(int argc, char *argv[]) {
 
     GstPad *x264enc_src_pad, *avenc_aac_src_pad;
     GstPad *splitmuxsink_video_pad, *splitmuxsink_audio_pad;
-
-    GstStructure *sink_props;
     
     /* Initialize GStreamer */
     gst_init (&argc, &argv);
@@ -91,7 +109,10 @@ int main(int argc, char *argv[]) {
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
     g_object_set (custom_file_sink, "sync", true, NULL);
-    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", 15000000000, "send-keyframe-requests", true, "sink", custom_file_sink, NULL);
+    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", (guint64)SEGMENT_DURATION * GST_MSECOND, "send-keyframe-requests", true, "sink", custom_file_sink, NULL);
+
+    // Connect the format-location signal to generate dynamic filenames
+    g_signal_connect(split_mux_sink, "format-location", G_CALLBACK(format_location_callback), NULL);
 
     g_print ("All elements configured successfully.\n");
   
