@@ -98,6 +98,11 @@ int main(int argc, char *argv[]) {
         g_print ("All elements created successfully.\n");
     }
 
+    /* Create the sink properties structure */
+    sink_props = gst_structure_new("properties",
+                    "sync", G_TYPE_BOOLEAN, TRUE,
+                    NULL);
+
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
