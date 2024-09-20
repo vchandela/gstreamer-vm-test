@@ -53,16 +53,15 @@ int main(int argc, char *argv[]) {
     GstMessage *msg;
     
     GstPad *video_tee_flv_pad, *video_tee_mp4_pad;
-    GstPad *video_flv_queue_sink_pad, *video_mp4_queue_sink_pad;
+    GstPad *video_flv_queue_sink_pad, *splitmuxsink_video_pad;
 
     GstPad *audio_tee_flv_pad, *audio_tee_mp4_pad;
-    GstPad *audio_flv_queue_sink_pad, *audio_mp4_queue_sink_pad;
+    GstPad *audio_flv_queue_sink_pad, *splitmuxsink_audio_pad;
 
     GstPad *video_flv_queue_src_pad, *audio_flv_queue_src_pad;
     GstPad *flv_mux_video_pad, *flv_mux_audio_pad;
 
-    GstPad *video_mp4_queue_src_pad, *audio_mp4_queue_src_pad;
-    GstPad *splitmuxsink_video_pad, *splitmuxsink_audio_pad;
+    GstStructure *sink_props;
 
     /* Initialize GStreamer */
     gst_init (&argc, &argv);
@@ -73,7 +72,6 @@ int main(int argc, char *argv[]) {
     x264_enc = gst_element_factory_make ("x264enc", "x264_enc");
     video_tee = gst_element_factory_make ("tee", "video_tee");
     video_flv_queue = gst_element_factory_make ("queue", "video_flv_queue");
-    video_mp4_queue = gst_element_factory_make ("queue", "video_mp4_queue");
 
     audio_source = gst_element_factory_make ("audiotestsrc", "audio_source");
     audio_convert = gst_element_factory_make ("audioconvert", "audio_convert");
@@ -81,7 +79,6 @@ int main(int argc, char *argv[]) {
     avenc_aac = gst_element_factory_make ("avenc_aac", "avenc_aac");
     audio_tee = gst_element_factory_make ("tee", "audio_tee");
     audio_flv_queue = gst_element_factory_make ("queue", "audio_flv_queue");
-    audio_mp4_queue = gst_element_factory_make ("queue", "audio_mp4_queue");
 
     flv_mux = gst_element_factory_make ("flvmux", "flv_mux");
     flv_filesink = gst_element_factory_make ("filesink", "flv_filesink");
@@ -90,8 +87,8 @@ int main(int argc, char *argv[]) {
     /* Create the empty pipeline */
     pipeline = gst_pipeline_new ("test-pipeline");
 
-    if (!pipeline || !video_source || !video_convert || !x264_enc || !video_tee || !video_flv_queue || !video_mp4_queue ||
-    !audio_source || !audio_convert || !audio_resample || !avenc_aac || !audio_tee || !audio_flv_queue || !audio_mp4_queue ||
+    if (!pipeline || !video_source || !video_convert || !x264_enc || !video_tee || !video_flv_queue ||
+    !audio_source || !audio_convert || !audio_resample || !avenc_aac || !audio_tee || !audio_flv_queue ||
     !flv_mux || !flv_filesink || !split_mux_sink) {
         g_printerr ("Not all elements could be created.\n");
         return -1;
@@ -99,19 +96,24 @@ int main(int argc, char *argv[]) {
         g_print ("All elements created successfully.\n");
     }
 
+    /* Create the sink properties structure */
+    sink_props = gst_structure_new("properties",
+                    "sync", G_TYPE_BOOLEAN, TRUE,
+                    NULL);
+
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
     g_object_set (flv_mux, "streamable", true, "enforce-increasing-timestamps", false, NULL);
-    g_object_set (flv_filesink, "location", "/Users/vivekchandela/Documents/flvtest/output.flv", NULL);
-    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", 15000000000, "async-finalize", true, "send-keyframe-requests", true, NULL);
+    g_object_set (flv_filesink, "location", "/Users/vivekchandela/Documents/flvtest/output.flv", "sync", true, NULL);
+    g_object_set(split_mux_sink, "location", "/Users/vivekchandela/Documents/mp4test/chunk%02d.mp4", "max-size-time", 15000000000, "async-finalize", true, "send-keyframe-requests", true, "sink-properties", sink_props, NULL);
 
     g_print ("All elements configured successfully.\n");
   
     /* Link all elements that can be automatically linked because they have "Always" pads */
     /* Adding caps filter between video_source and video_convert */
-    gst_bin_add_many (GST_BIN (pipeline), video_source, video_convert, x264_enc, video_tee, video_flv_queue, video_mp4_queue,
-    audio_source, audio_convert, audio_resample, avenc_aac, audio_tee, audio_flv_queue, audio_mp4_queue,
+    gst_bin_add_many (GST_BIN (pipeline), video_source, video_convert, x264_enc, video_tee, video_flv_queue,
+    audio_source, audio_convert, audio_resample, avenc_aac, audio_tee, audio_flv_queue,
     flv_mux, flv_filesink, split_mux_sink, NULL);
 
     if (link_elements_with_video_filter (video_source, video_convert) != TRUE ||
@@ -138,10 +140,11 @@ int main(int argc, char *argv[]) {
     
     video_tee_mp4_pad = gst_element_request_pad_simple (video_tee, "src_%u");
     g_print ("Obtained request pad %s for video_tee's mp4mux branch.\n", gst_pad_get_name (video_tee_mp4_pad));
-    video_mp4_queue_sink_pad = gst_element_get_static_pad (video_mp4_queue, "sink");
+    splitmuxsink_video_pad = gst_element_request_pad_simple (split_mux_sink, "video");
+    g_print ("Obtained request pad %s for splitmuxsink video branch.\n", gst_pad_get_name (splitmuxsink_video_pad));
 
     if (gst_pad_link (video_tee_flv_pad, video_flv_queue_sink_pad) != GST_PAD_LINK_OK ||
-        gst_pad_link (video_tee_mp4_pad, video_mp4_queue_sink_pad) != GST_PAD_LINK_OK) {
+        gst_pad_link (video_tee_mp4_pad, splitmuxsink_video_pad) != GST_PAD_LINK_OK) {
         g_printerr ("video_tee could not be linked.\n");
         gst_object_unref (pipeline);
         return -1;
@@ -149,7 +152,7 @@ int main(int argc, char *argv[]) {
         g_print ("video_tee linked successfully.\n");
     }
     gst_object_unref (video_flv_queue_sink_pad);
-    gst_object_unref (video_mp4_queue_sink_pad);
+    gst_object_unref (splitmuxsink_video_pad);
 
     /* Manually link the audio_tee, which has "Request" pads */
     audio_tee_flv_pad = gst_element_request_pad_simple (audio_tee, "src_%u");
@@ -158,10 +161,11 @@ int main(int argc, char *argv[]) {
     
     audio_tee_mp4_pad = gst_element_request_pad_simple (audio_tee, "src_%u");
     g_print ("Obtained request pad %s for audio_tee's mp4mux branch.\n", gst_pad_get_name (audio_tee_mp4_pad));
-    audio_mp4_queue_sink_pad = gst_element_get_static_pad (audio_mp4_queue, "sink");
+    splitmuxsink_audio_pad = gst_element_request_pad_simple (split_mux_sink, "audio_%u");
+    g_print ("Obtained request pad %s for splitmuxsink audio branch.\n", gst_pad_get_name (splitmuxsink_audio_pad));
 
     if (gst_pad_link (audio_tee_flv_pad, audio_flv_queue_sink_pad) != GST_PAD_LINK_OK ||
-        gst_pad_link (audio_tee_mp4_pad, audio_mp4_queue_sink_pad) != GST_PAD_LINK_OK) {
+        gst_pad_link (audio_tee_mp4_pad, splitmuxsink_audio_pad) != GST_PAD_LINK_OK) {
         g_printerr ("audio_tee could not be linked.\n");
         gst_object_unref (pipeline);
         return -1;
@@ -169,8 +173,7 @@ int main(int argc, char *argv[]) {
         g_print ("audio_tee linked successfully.\n");
     }
     gst_object_unref (audio_flv_queue_sink_pad);
-    gst_object_unref (audio_mp4_queue_sink_pad);
-
+    gst_object_unref (splitmuxsink_audio_pad);
 
     /* Manually link the flvmux which has "Request" pads */
     video_flv_queue_src_pad = gst_element_get_static_pad (video_flv_queue, "src");
@@ -191,26 +194,6 @@ int main(int argc, char *argv[]) {
     }
     gst_object_unref (video_flv_queue_src_pad);
     gst_object_unref (audio_flv_queue_src_pad);
-
-    /* Manually link the splitmuxsink which has "Request" pads */
-    video_mp4_queue_src_pad = gst_element_get_static_pad (video_mp4_queue, "src");
-    splitmuxsink_video_pad = gst_element_request_pad_simple (split_mux_sink, "video");
-    g_print ("Obtained request pad %s for splitmuxsink video branch.\n", gst_pad_get_name (splitmuxsink_video_pad));
-
-    audio_mp4_queue_src_pad = gst_element_get_static_pad (audio_mp4_queue, "src");
-    splitmuxsink_audio_pad = gst_element_request_pad_simple (split_mux_sink, "audio_%u");
-    g_print ("Obtained request pad %s for splitmuxsink audio branch.\n", gst_pad_get_name (splitmuxsink_audio_pad));
-
-    if (gst_pad_link (video_mp4_queue_src_pad, splitmuxsink_video_pad) != GST_PAD_LINK_OK ||
-    gst_pad_link (audio_mp4_queue_src_pad, splitmuxsink_audio_pad) != GST_PAD_LINK_OK) {
-        g_printerr ("splitmuxsink could not be linked!\n");
-        gst_object_unref (pipeline);
-        return -1;
-    } else {
-        g_print ("splitmuxsink linked successfully.\n");
-    }
-    gst_object_unref (video_mp4_queue_src_pad);
-    gst_object_unref (audio_mp4_queue_src_pad);
 
     /* Start playing the pipeline */
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
@@ -239,12 +222,6 @@ int main(int argc, char *argv[]) {
     gst_element_release_request_pad (flv_mux, flv_mux_audio_pad);
     gst_object_unref (flv_mux_video_pad);
     gst_object_unref (flv_mux_audio_pad);
-
-    /* Release the request pads from splitmuxsink, and unref them */
-    gst_element_release_request_pad (split_mux_sink, splitmuxsink_video_pad);
-    gst_object_unref (splitmuxsink_video_pad);
-    gst_element_release_request_pad (split_mux_sink, splitmuxsink_audio_pad);
-    gst_object_unref (splitmuxsink_audio_pad);
 
     /* Free resources */
     if (msg != NULL)
