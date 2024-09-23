@@ -5,22 +5,6 @@
 
 #define SEGMENT_DURATION 15000 // Duration for each segment in milliseconds
 
-// Function to get the current time in milliseconds since the Unix epoch
-static long long current_time_millis() {
-    struct timeval time_now;
-    gettimeofday(&time_now, NULL);
-    return (long long)(time_now.tv_sec) * 1000 + (long long)(time_now.tv_usec) / 1000;
-}
-
-static gchar* format_location_callback(GstElement *splitmuxsink, guint fragment_id, gpointer user_data) {
-    // Get the (Unix epoch time) for start and end time
-    long long start_time = current_time_millis();
-    long long end_time = start_time + SEGMENT_DURATION;
-
-    gchar *filename = g_strdup_printf("/Users/vivekchandela/Documents/mp4test/%lld_%lld.mp4", start_time, end_time);
-    return filename;
-}    
-
 static gboolean link_elements_with_video_filter (GstElement *element1, GstElement *element2)
 {
     gboolean link_ok;
@@ -67,7 +51,7 @@ int main(int argc, char *argv[]) {
     GstElement *pipeline;
     GstElement *video_source, *video_queue, *video_convert, *x264_enc;
     GstElement *audio_source, *audio_queue, *audio_convert, *audio_resample, *avenc_aac;
-    GstElement *split_mux_sink, *custom_file_sink;
+    GstElement *split_mux_sink, *gcs_sink;
 
     GstBus *bus;
     GstMessage *msg;
@@ -91,14 +75,14 @@ int main(int argc, char *argv[]) {
     avenc_aac = gst_element_factory_make ("avenc_aac", "avenc_aac");
 
     split_mux_sink = gst_element_factory_make ("splitmuxsink", "split_mux_sink");
-    custom_file_sink = gst_element_factory_make ("filesink", "custom_file_sink");
+    gcs_sink = gst_element_factory_make ("awss3sink", "gcs_sink");
 
     /* Create the empty pipeline */
     pipeline = gst_pipeline_new ("test-pipeline");
 
     if (!pipeline || !video_source || !video_queue || !video_convert || !x264_enc ||
     !audio_source || !audio_queue || !audio_convert || !audio_resample || !avenc_aac ||
-    !split_mux_sink || !custom_file_sink) {
+    !split_mux_sink || !gcs_sink) {
         g_printerr ("Not all elements could be created.\n");
         return -1;
     } else {
@@ -108,11 +92,8 @@ int main(int argc, char *argv[]) {
     /* Configure elements */
     g_object_set (x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (avenc_aac, "bitrate", 256, NULL);
-    g_object_set (custom_file_sink, "sync", true, NULL);
-    g_object_set(split_mux_sink, "max-size-time", (guint64)SEGMENT_DURATION * GST_MSECOND, "send-keyframe-requests", true, "sink", custom_file_sink, NULL);
-
-    // Connect the format-location signal to generate dynamic filenames
-    g_signal_connect(split_mux_sink, "format-location", G_CALLBACK(format_location_callback), NULL);
+    g_object_set (gcs_sink, "access-key", "add-here", "bucket", "add-here", "endpoint-uri", "https://storage.googleapis.com", "force-path-style", true, "key", "mp4/chunk.mp4", "region", "add-here", "secret-access-key", "add-here", "sync", true,  NULL);
+    g_object_set(split_mux_sink, "max-size-time", (guint64)SEGMENT_DURATION * GST_MSECOND, "send-keyframe-requests", true, "sink", gcs_sink, NULL);
 
     g_print ("All elements configured successfully.\n");
   
@@ -160,7 +141,7 @@ int main(int argc, char *argv[]) {
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
     /* Visualize the pipeline using GraphViz */
-    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-splitmuxsink-custom-sink");
+    gst_debug_bin_to_dot_file(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-splitmuxsink-awss3sink-single");
 
     /* Wait until error or EOS */
     bus = gst_element_get_bus (pipeline);
