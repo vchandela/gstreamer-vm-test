@@ -12,18 +12,20 @@ static long long current_time_millis() {
     return (long long)(time_now.tv_sec) * 1000 + (long long)(time_now.tv_usec) / 1000;
 }
 
-static void format_location_callback(GstElement *splitmuxsink, guint fragment_id, gpointer user_data) {
+static gchar* format_location_callback(GstElement *splitmuxsink, guint fragment_id, gpointer user_data) {
     // Get the (Unix epoch time) for start and end time
     long long start_time = current_time_millis();
     long long end_time = start_time + SEGMENT_DURATION;
 
-    gchar *filename = g_strdup_printf("mp4/%lld_%lld.mp4", start_time, end_time);
+    gchar *filename = g_strdup_printf("vm/%lld_%lld.mp4", start_time, end_time);
 
     GstElement *gcs_sink = GST_ELEMENT(user_data); // Retrieve gcs_sink passed via user_data
     if (gcs_sink) {
         g_object_set(gcs_sink, "key", filename, NULL);  // Set the key dynamically
     }
-}    
+
+    return filename;
+}
 
 static gboolean link_elements_with_video_filter (GstElement *element1, GstElement *element2)
 {
@@ -32,8 +34,8 @@ static gboolean link_elements_with_video_filter (GstElement *element1, GstElemen
 
     caps = gst_caps_new_simple ("video/x-raw",
             "format", G_TYPE_STRING, "I420",
-            "width", G_TYPE_INT, 720,
-            "height", G_TYPE_INT, 1280,
+            "width", G_TYPE_INT, 360,
+            "height", G_TYPE_INT, 640,
             "framerate", GST_TYPE_FRACTION, 15, 1,
             NULL);
 
@@ -78,7 +80,7 @@ int main(int argc, char *argv[]) {
 
     GstPad *x264enc_src_pad, *avenc_aac_src_pad;
     GstPad *splitmuxsink_video_pad, *splitmuxsink_audio_pad;
-    
+
     /* Initialize GStreamer */
     gst_init (&argc, &argv);
 
@@ -119,7 +121,7 @@ int main(int argc, char *argv[]) {
     g_signal_connect(split_mux_sink, "format-location", G_CALLBACK(format_location_callback), gcs_sink);
 
     g_print ("All elements configured successfully.\n");
-  
+
     /* Link all elements that can be automatically linked because they have "Always" pads */
     /* Adding caps filter between video_source and video_convert */
     gst_bin_add_many (GST_BIN (pipeline), video_source, video_queue, video_convert, x264_enc,
