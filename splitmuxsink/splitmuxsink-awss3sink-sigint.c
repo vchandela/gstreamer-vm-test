@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
     GstBus *bus = gst_element_get_bus (self.pipeline);
     GstMessage *msg;
     /* Free resources */
-    while(true) {
+    while(!eos) {
         msg = gst_bus_timed_pop_filtered (bus, 1000 * GST_MSECOND, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
         if (msg) {
             if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_EOS) {
@@ -230,7 +230,6 @@ int main(int argc, char *argv[]) {
                 g_free(debug);
             }
             gst_message_unref(msg);
-            break;
         }
 
         // Ensure check_and_send_eos is called one last time after the loop
@@ -238,6 +237,7 @@ int main(int argc, char *argv[]) {
             g_print("Sending EOS due to sigint\n");
             check_and_send_eos(&self);
             eos=TRUE;
+            g_usleep(60 * G_USEC_PER_SEC); //graceful shutdown of 1 min
         }
     }
 

@@ -26,3 +26,4 @@
  
 - `splitmuxsink-awss3sink-sigint.c`
   - Similar to `splitmuxsink-awss3sink-eos.c` but we are using SIGINT signal to trigger EOS instead of manually sending EOS.
+  - After noticing that EOS is received after 21-22 sec, added a graceful shutdown period of 1 min.
