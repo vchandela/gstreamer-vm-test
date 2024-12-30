@@ -135,7 +135,7 @@ gboolean run_splitmuxsink(MediaPush *self) {
     /* Configure elements */
     g_object_set (self->x264_enc, "speed-preset", 1, "bitrate", 128, NULL);
     g_object_set (self->avenc_aac, "bitrate", 256, NULL);
-    g_object_set (gcs_sink, "access-key", "add-here", "bucket", "add-here", "endpoint-uri", "https://storage.googleapis.com", "force-path-style", true, "region", "add-here", "secret-access-key", "add-here", "sync", true,  NULL);
+    g_object_set (self->gcs_sink, "access-key", "add-here", "bucket", "add-here", "endpoint-uri", "https://storage.googleapis.com", "force-path-style", true, "region", "add-here", "secret-access-key", "add-here", "sync", true,  NULL);
     g_object_set(self->split_mux_sink, "max-size-time", (guint64)SEGMENT_DURATION * GST_MSECOND, "send-keyframe-requests", true, "sink", self->gcs_sink, NULL);
 
     // Connect the format-location signal to generate dynamic filenames
@@ -195,8 +195,11 @@ gboolean run_splitmuxsink(MediaPush *self) {
 // Function to check and send EOS if terminate is TRUE
 void check_and_send_eos(MediaPush *self) {
     if (terminate) {
-        gst_element_send_event(self->pipeline, gst_event_new_eos());
-        g_print("EOS event sent to the pipeline\n");       
+        gst_element_send_event(self->split_mux_sink, gst_event_new_eos());
+        g_print("EOS event sent to the splitmuxsink\n");   
+        // We can also send EOS directly to pipeline
+        // gst_element_send_event(self->pipeline, gst_event_new_eos());
+        // g_print("EOS event sent to the pipeline\n");       
     }
 }
 

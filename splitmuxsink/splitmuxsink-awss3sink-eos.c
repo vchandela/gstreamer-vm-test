@@ -165,8 +165,8 @@ int main(int argc, char *argv[]) {
     /* Start playing the pipeline */
     gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
-    g_print("Waiting for 110 sec before sending EOS...\n");
-    g_usleep(110 * G_USEC_PER_SEC); 
+    g_print("Waiting for 1 sec before sending EOS...\n");
+    g_usleep(1 * G_USEC_PER_SEC); 
 
     /* Send EOS event to the pipeline */
     gst_element_send_event(pipeline, gst_event_new_eos());
