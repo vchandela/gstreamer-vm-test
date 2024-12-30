@@ -195,11 +195,19 @@ gboolean run_splitmuxsink(MediaPush *self) {
 // Function to check and send EOS if terminate is TRUE
 void check_and_send_eos(MediaPush *self) {
     if (terminate) {
-        gst_element_send_event(self->split_mux_sink, gst_event_new_eos());
-        g_print("EOS event sent to the splitmuxsink\n");   
-        // We can also send EOS directly to pipeline
+        // M-1: send EOS to split_mux_sink
+        // gst_element_send_event(self->split_mux_sink, gst_event_new_eos());
+        // g_print("EOS event sent to the splitmuxsink\n"); 
+
+        // M-2: send EOS directly to pipeline
         // gst_element_send_event(self->pipeline, gst_event_new_eos());
         // g_print("EOS event sent to the pipeline\n");       
+    
+        // M-3: send EOS to the pads of split_mux_sink
+        g_print("Sending EOS to splitmuxsink pads...\n");
+        gst_pad_send_event(self->splitmuxsink_video_pad, gst_event_new_eos());
+        gst_pad_send_event(self->splitmuxsink_audio_pad, gst_event_new_eos());
+        g_print("EOS sent to splitmuxsink pads\n");
     }
 }
 
